@@ -1,0 +1,12 @@
+# Everything that identifies a person or a bike lives here. Nothing in this
+# directory is ever committed except the two .example.json files.
+data/*
+!data/bike.example.json
+!data/accessories.example.json
+
+.env
+.venv*/
+__pycache__/
+*.pyc
+*.parked
+*.bak-*

@@ -1,0 +1,6 @@
+requests>=2.31
+
+# The CLIP attribute pass (visual.py) runs in its own venv, because fastembed
+# pulls onnxruntime and you do not want that in a cron venv:
+#   python3 -m venv .venv-vision
+#   .venv-vision/bin/pip install fastembed pillow numpy requests

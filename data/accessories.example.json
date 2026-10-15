@@ -1,0 +1,62 @@
+{
+  "theft_date": "2026-01-01",
+  "centre": {
+    "lat": 41.3874,
+    "lon": 2.1686,
+    "label": "city centre"
+  },
+  "radius_km": 40,
+  "max_price": 500,
+  "cluster_min_categories": 2,
+  "cluster_window_days": 45,
+  "kit": {
+    "seat": [
+      "thule yepp",
+      "silla yepp",
+      "silla bebe bicicleta",
+      "portabebe bicicleta"
+    ],
+    "rack": [
+      "portabultos bicicleta",
+      "parrilla trasera bicicleta",
+      "portaequipajes bicicleta"
+    ],
+    "bag": [
+      "alforja bicicleta",
+      "alforjas bicicleta",
+      "alforja vaude"
+    ],
+    "fender": [
+      "guardabarros bicicleta"
+    ],
+    "wheel": [
+      "rueda 700 disco",
+      "juego de ruedas 700",
+      "rueda bicicleta gravel"
+    ],
+    "post": [
+      "sillin bicicleta",
+      "tija sillin bicicleta"
+    ],
+    "drive": [
+      "grupo shimano bicicleta",
+      "cambio trasero shimano"
+    ]
+  },
+  "locked_categories": [
+    "wheel",
+    "post"
+  ],
+  "locks_national": {
+    "pitlock": false,
+    "pinhead": true,
+    "hexlox": false
+  },
+  "_comment": "Copy to data/accessories.json. The residue of a STRIPPED bike, which the main sweep drops on purpose. Ranked by SELLER, not by item: one account selling a child seat, a rack and a pannier in the same fortnight is a bike that came apart. locked_categories are the parts your coded skewers hold on -- a seller offering those AS WELL AS unlocked kit implies an angle grinder, i.e. a chop shop rather than an opportunist. locks_national maps a lock brand -> needs_bike_context, because 'pinhead' is also a Hellraiser figure and the first test pass pushed one. Set the ones you actually own. signature_categories are the parts that came off YOUR bike with an allen key; clusters rank on how many of those a seller has.",
+  "signature_categories": [
+    "seat",
+    "rack",
+    "bag",
+    "fender"
+  ]
+}
