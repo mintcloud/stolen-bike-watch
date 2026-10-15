@@ -58,6 +58,8 @@ are what a thief does before listing.
 That separation — a hard floor at 2 for the world, a hard floor at 7 for the
 bike — is the whole product. It is what turns 900 photos a day into 4.
 
+![Score distribution: 119 of 120 real listings score 2 or below, while the bike's own photos score 7-9](docs/img/score-separation.png)
+
 **Stage 1 then earns its place back as a pre-gate.** Rejecting the cheap filter
 as a *ranker* is not the same as rejecting it as a *gate*. Once the three CLIP
 arms are calibrated against deliberately degraded reference photos, each failure
@@ -66,6 +68,10 @@ the child-seat arm alone, a stripped one on navy/dropbar alone — so a 3-arm OR
 gate cuts 44% of the paid calls with a worst-case margin of 2.3× and kills
 nothing the LLM would have scored ≥3. That one split is the difference between
 **$31/month and $14/month**.
+
+![Three CLIP arms against seven probes: a repainted bike passes on the child-seat arm alone, a stripped one on navy/drop-bar alone](docs/img/three-arms.png)
+
+![Cost per configuration: the shipped near/far gate split costs $14 a month against $31 ungated](docs/img/cost-split.png)
 
 Both passes, every threshold, and the probe tables they are calibrated against
 are in [`docs/RECOGNITION.md`](docs/RECOGNITION.md). Do not move a number
