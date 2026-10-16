@@ -83,6 +83,8 @@ import time
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 
+import objectpack
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(HERE, "data")
 PHOTOS = os.path.join(DATA, "photos")
@@ -139,52 +141,66 @@ PRICES = {
     "claude-haiku-4-5": (1.00, 5.00, 0.10, 1.25),
 }
 
-# The prompt is the product here. Two things in it are load-bearing and were
-# each arrived at by a failed run:
+# The prompt is the product here, and it is now assembled rather than typed:
+#   profiles/<object>.json  -> intro, the 0-10 band descriptions, the closing
+#   data/bike.json          -> `headline` and `description`, i.e. YOUR object
+#
+# Two parts are load-bearing and each was paid for with a failed run:
 #   - The band descriptions have to span the range. A first version ended with
 #     "Be strict. Most photos should be 0-3." and collapsed 116 of 120 scores
 #     to exactly 0 — including all three reference photos.
-#   - The blue-wall warning has to be there. Both reference photos of the
-#     loaded bike are shot against a blue painted garage wall, which is also
-#     why visual.py's `navy` signal reads 0.18 on them; without the warning the
-#     model credits the background.
-PROMPT = """You are helping find ONE specific stolen bicycle in marketplace photos.
-Reference photos of it are attached first — study them before judging.
+#   - The description has to name any background colour in your reference
+#     photos. Both photos of the loaded bike are shot against a blue painted
+#     garage wall, which is also why the `navy` arm reads 0.18 on them; without
+#     the warning the model credits the wall.
+#
+# `./calibrate.py prompt` prints the assembled prompt. Read it before a run.
 
-THE BIKE: a <BRAND> <MODEL>, stolen in Barcelona on 2026-09-05.
+def auto_headline(prof):
+    bits = " ".join(x for x in (prof.get("brand"), prof.get("model")) if x).strip()
+    out = f"a {bits}" if bits else "the object in the reference photos"
+    where = (prof.get("centre") or {}).get("label")
+    if where:
+        out += f", stolen near {where}"
+    if prof.get("stolen_on"):
+        out += f" on {prof['stolen_on']}"
+    return out + "."
 
-Frame and fork — the part a thief cannot easily change:
-- Dark navy / midnight blue gloss paint.
-- Steel: thin, round, constant-diameter tubes. Not a fat aluminium frame and
-  not a shaped/aero carbon frame.
-- A level, horizontal top tube running straight from the head tube to the
-  seat tube. Most modern road and gravel bikes slope the top tube down toward
-  the back; this one does not.
-- Drop handlebars. Disc brakes. Wide-tyre clearance with rack/mudguard eyelets.
 
-Wheels: wide (~40 mm) tyres with tan / brown gumwall sidewalls.
+def auto_description(prof, pack):
+    """A description built from the structured fields. It is a fallback, and a
+    weak one: the whole value of this pass is in the specifics a human writes.
+    Every sentence here is something a thousand listings also match."""
+    noun = objectpack.noun(pack)
+    bits = []
+    colour = prof.get("colour")
+    if colour:
+        bits.append(f"- Colour: {colour}.")
+    for k, lab in (("type", "Type"), ("size", "Size"), ("year", "Year")):
+        if prof.get(k):
+            bits.append(f"- {lab}: {prof[k]}.")
+    for kw in prof.get("extra_keywords", []):
+        bits.append(f"- Carries or is described as: {kw}.")
+    if not bits:
+        bits.append("- (No description written. Judge on the reference photos "
+                    "alone, and score the middle when unsure.)")
+    return ("Judge the parts a thief cannot easily change — frame, shape, "
+            f"proportions — before the removable kit.\n" + "\n".join(bits) +
+            f"\n\nWrite a real description into `description` in your profile: "
+            f"what makes THIS {noun} different from every other one.")
 
-The kit — often stripped, so its absence proves nothing, but its presence is
-strong evidence: a grey-and-black Thule Yepp child seat on the rear rack,
-black tubular racks front AND rear, a black VAUDE pannier, black mudguards.
 
-One trap: the reference photos happen to be shot against a blue painted wall.
-Background colour is not evidence — judge the paint on the frame tubes.
+def build_prompt(prof, pack=None):
+    pack = pack or objectpack.load(prof)
+    t = pack["prompt"]
+    headline = (prof.get("headline") or "").strip() or auto_headline(prof)
+    desc = (prof.get("description") or "").strip() or auto_description(prof, pack)
+    return "\n\n".join([t["intro"],
+                         t["label_line"].format(headline=headline),
+                         desc,
+                         t["scoring"] + "\n" + t["bands"],
+                         t["closing"]])
 
-Score how plausibly the photo could be THIS bike, 0-10:
- 0-1  wrong genre entirely — mtb, e-bike, city/hybrid, kids, BMX, folding,
-      a spare part, a frame only, or not a bicycle
- 2-3  a drop-bar bike, but clearly a different one (modern sloping-top-tube
-      carbon race bike, or plainly the wrong colour)
- 4-5  right genre — a steel or steel-looking drop-bar gravel/touring/cross
-      bike — but nothing specific lines up
- 6-7  several specific features line up: e.g. dark blue AND drop bars, or a
-      level top tube on a steel drop-bar bike, or gumwall tyres plus racks
- 8-10 could really be it: frame shape and colour both match, or the kit
-      (child seat, twin racks, gumwalls) is recognisable
-
-Use the whole range. Judge what you can actually see; if the photo is too
-small, dark or cropped to tell, say so in the reason and score the middle."""
 
 SCHEMA = {
     "type": "object",
@@ -269,8 +285,9 @@ def ref_prefix(prof, exclude=None):
     blocks, 4 of 12 calls answered "no bicycle image provided to evaluate" —
     the model had folded the listing photo into the reference set.
     """
+    noun = objectpack.noun(objectpack.load(prof))
     out = [{"type": "text", "text":
-            "=== REFERENCE PHOTOS of the stolen bike (for comparison only, "
+            f"=== REFERENCE PHOTOS of the stolen {noun} (for comparison only, "
             "never the photo you are scoring) ==="}]
     n = 0
     for p in refs():
@@ -301,6 +318,7 @@ class Scorer:
         self.model = prof["vlm_model"]
         self.client = anthropic.Anthropic()
         self.prefix = ref_prefix(prof)
+        self.prompt = build_prompt(prof)
         self.usage = {"in": 0, "out": 0, "cr": 0, "cw": 0}
 
     def one(self, path, prefix=None):
@@ -308,7 +326,7 @@ class Scorer:
             try:
                 r = self.client.messages.create(
                     model=self.model, max_tokens=200,
-                    system=[{"type": "text", "text": PROMPT,
+                    system=[{"type": "text", "text": self.prompt,
                              "cache_control": {"type": "ephemeral"}}],
                     output_config={"format": {"type": "json_schema",
                                               "schema": SCHEMA}},
@@ -437,12 +455,11 @@ def pre_gate(row, prof):
         # No CLIP score yet (visual.py has not run, or the photo is missing).
         # Fail OPEN: pay for the call rather than silently skip a listing.
         return True
-    if row.get("_ring") == "far":
-        return (a.get("dropbar", 0) >= prof.get("vlm_pregate_far_dropbar", 0.35)
-                or a.get("navy", 0) >= prof.get("vlm_pregate_far_navy", 0.06))
-    return (a.get("dropbar", 0) >= prof.get("vlm_pregate_dropbar", 0.10)
-            or a.get("navy", 0) >= prof.get("vlm_pregate_navy", 0.05)
-            or a.get("kid", 0) >= prof.get("vlm_pregate_kid", 0.40))
+    ring = "far" if row.get("_ring") == "far" else "near"
+    gate = objectpack.gate(objectpack.load(prof), prof, ring)
+    if not gate:
+        return True
+    return any(a.get(arm, 0) >= thr for arm, thr in gate.items())
 
 
 def score_rows(rows, prof=None, cache=None):
@@ -463,8 +480,8 @@ def score_rows(rows, prof=None, cache=None):
             continue
         if not named(r, prof) and not pre_gate(r, prof):
             gated += 1
-            cache[iid] = {"score": 0, "reason": "not a drop-bar, navy or "
-                                                "loaded bike (CLIP pre-gate)",
+            cache[iid] = {"score": 0,
+                          "reason": "clears no attribute arm (CLIP pre-gate)",
                           "_pregated": True}
             continue
         todo.append((iid, p))

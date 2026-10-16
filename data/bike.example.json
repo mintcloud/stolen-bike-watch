@@ -1,6 +1,9 @@
 {
+  "object": "bicycle",
   "brand": "",
   "model": "",
+  "headline": "",
+  "description": "",
   "type": "gravel",
   "colour": "azul",
   "size": "",
@@ -45,5 +48,6 @@
   "vlm_pregate_navy": 0.05,
   "vlm_pregate_kid": 0.4,
   "vlm_pregate_far_dropbar": 0.35,
-  "vlm_pregate_far_navy": 0.06
+  "vlm_pregate_far_navy": 0.06,
+  "_comment_object": "`object` picks profiles/<object>.json -- bicycle, motorbike or generic. `headline` and `description` are what the vision model is told to look for; leave them empty and a weak one is built from the fields above, which is enough to start and not enough to rely on. Read AGENTS.md section 3, then run ./calibrate.py."
 }

@@ -62,35 +62,44 @@ LOG = "[visual]"
 VISION_MODEL = "Qdrant/clip-ViT-B-32-vision"
 TEXT_MODEL = "Qdrant/clip-ViT-B-32-text"
 
-# Contrastive prompt groups. Each is (positives, negatives); the score is the
-# softmax mass on the positives, so the negatives are load-bearing — a bare
-# cosine to one prompt is not comparable across images.
-GROUPS = {
-    "dropbar": (
-        ["a photo of a bicycle with drop handlebars, a road or gravel bike"],
-        ["a photo of a mountain bike with flat handlebars",
-         "a photo of a city or hybrid bicycle with flat straight handlebars",
-         "a photo of an electric bicycle with a motor",
-         "a photo of a folding bicycle",
-         "a photo of a small child's bicycle",
-         "a photo of a BMX bicycle",
-         "a photo of a bicycle wheel or spare part, not a whole bicycle"]),
-    "steel": (
-        ["a photo of a bicycle with a slim steel tube frame, classic touring style"],
-        ["a photo of a modern carbon fibre aero racing bicycle",
-         "a photo of a thick aluminium frame bicycle"]),
-    "kid": (
-        ["a photo of a bicycle with a child seat mounted on the back"],
-        ["a photo of a bicycle with no accessories"]),
-}
+# Contrastive prompt groups, the colour arm and the gate all come from the
+# object pack — `profiles/<object>.json`, selected by `"object"` in the item
+# profile. `profiles/bicycle.json` holds exactly the values this ran on for
+# its first six weeks; see objectpack.py and AGENTS.md.
+#
+# Each CLIP arm is (positives, negatives); the score is the softmax mass on
+# the positives, so the negatives are load-bearing — a bare cosine to one
+# prompt is not comparable across images.
+import objectpack  # noqa: E402
 
-# The gate for the outer ring of the sweep. Tuned on the 777-image archive:
-# passes 27% of listings and all three reference photos. Recall is the point —
-# the bike may well be photographed loaded with the racks and the child seat,
-# in which case `dropbar` reads 0.01 (measured on ref 1) and only `navy` saves
-# it.
-GATE_DROPBAR = 0.35
-GATE_NAVY = 0.06
+PROFILE_FILE = os.path.join(DATA, "bike.json")
+
+
+def profile():
+    try:
+        with open(PROFILE_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+PACK = objectpack.load(profile())
+GROUPS = objectpack.clip_groups(PACK)
+COLOUR_ARMS = objectpack.colour_arms(PACK)
+# The gate for the outer ring of the sweep. For the bicycle pack this is the
+# original 2026-09-07 gate: it passes 27-30% of listings and all three
+# reference photos. Recall is the point — the object may well be photographed
+# loaded, in which case `dropbar` reads 0.01 (measured on ref 1) and only the
+# colour arm saves it.
+FAR_GATE = objectpack.gate(PACK, profile(), "far")
+RANK = PACK.get("rank", {})
+ARM_LABELS = list(objectpack.arms(PACK))
+
+# Every cached attribute was computed under one set of arms. Change the arms
+# and the cache is not stale, it is WRONG — so it is keyed by their hash and
+# dropped wholesale when that moves.
+ARM_HASH = hashlib.sha1(
+    json.dumps(objectpack.arms(PACK), sort_keys=True).encode()).hexdigest()[:12]
 
 _models = {}
 
@@ -101,13 +110,18 @@ def log(msg):
 
 # ------------------------------------------------------------------ features
 
-def navy_fraction(path):
-    """Fraction of pixels in the dark-navy band, straight off the pixels.
+def colour_fraction(path, spec):
+    """Fraction of pixels inside a hue/sat/value box, straight off the pixels.
 
     CLIP was asked this ("a photo of a dark navy blue bicycle") and answered
     noise, so it is measured instead. Backgrounds do pollute it — two of the
     three reference shots are against a blue wall — which is why it is an OR
-    with `dropbar` and never a filter on its own.
+    arm and never a filter on its own.
+
+    `spec` is a colour arm from the object pack:
+        {"hue": [195, 260], "sat_min": 0.25, "val": [0.08, 0.62]}
+    Hue in degrees, 0-360, red at 0. `./calibrate.py colour` reads the band
+    off your own reference photos rather than making you guess it.
     """
     try:
         im = Image.open(path).convert("RGB")
@@ -129,8 +143,11 @@ def navy_fraction(path):
     i = (mx == b) & m
     h[i] = ((r - g)[i] / d[i]) + 4
     h *= 60
-    return float(((h > 195) & (h < 260) & (s > 0.25) &
-                  (v > 0.08) & (v < 0.62)).mean())
+    h0, h1 = spec.get("hue", [0, 360])
+    smin = spec.get("sat_min", 0.25)
+    v0, v1 = spec.get("val", [0.0, 1.0])
+    inband = (h > h1) | (h < h0) if h0 > h1 else (h > h0) & (h < h1)   # wrap at red
+    return float((inband & (s > smin) & (v > v0) & (v < v1)).mean())
 
 
 def _text_matrix():
@@ -165,7 +182,7 @@ def embed_images(paths):
 
 
 def attrs_for(paths):
-    """-> list of {dropbar, steel, kid, navy} in the order given."""
+    """-> list of {arm: score} in the order given, one key per pack arm."""
     V = embed_images(paths)
     T = _text_matrix()
     out = [{} for _ in paths]
@@ -176,20 +193,33 @@ def attrs_for(paths):
         for i, val in enumerate(p):
             out[i][g] = float(val)
     for i, path in enumerate(paths):
-        out[i]["navy"] = navy_fraction(path)
+        for arm, spec in COLOUR_ARMS.items():
+            out[i][arm] = colour_fraction(path, spec)
     return out
 
 
 def look_score(a):
-    """0-100. Weighted to what actually measured as discriminative."""
-    navy = min(a.get("navy", 0.0) / 0.15, 1.0)
-    return int(round(100 * (0.55 * a.get("dropbar", 0.0) +
-                            0.30 * navy +
-                            0.15 * a.get("steel", 0.0))))
+    """0-100, for ranking the digest. Weights come from the pack's `rank`
+    block; a colour arm is normalised by `norm` first because its raw value is
+    a pixel fraction and saturates low (0.15 on the bicycle pack)."""
+    w = RANK.get("weights") or {k: 1 for k in GROUPS}
+    norms = RANK.get("norm", {})
+    total = sum(w.values()) or 1
+    acc = 0.0
+    for arm, weight in w.items():
+        v = a.get(arm, 0.0)
+        n = norms.get(arm)
+        if n is None and arm in COLOUR_ARMS:
+            n = 0.15
+        if n:
+            v = min(v / n, 1.0)
+        acc += weight * v
+    return int(round(100 * acc / total))
 
 
 def passes_gate(a):
-    return a.get("dropbar", 0) >= GATE_DROPBAR or a.get("navy", 0) >= GATE_NAVY
+    """The far-ring gate: any arm over its threshold."""
+    return any(a.get(arm, 0) >= thr for arm, thr in FAR_GATE.items())
 
 
 # ------------------------------------------------------------------ listings
@@ -254,18 +284,26 @@ def score_rows(rows, cache=None):
 
 
 def load_cache():
+    """Cached attributes, dropped wholesale if the arms have been retuned.
+
+    Every value in here was produced by one set of prompts and one colour
+    band. Edit the pack and the old numbers are not stale, they are answers to
+    a different question — so they go, and the next sweep re-scores."""
     if os.path.exists(CACHE_FILE):
         try:
-            return json.load(open(CACHE_FILE))
+            c = json.load(open(CACHE_FILE))
         except Exception:
-            pass
+            return {}
+        if c.pop("_armhash", None) == ARM_HASH:
+            return c
+        log(f"arms changed — dropping {len(c)} cached attribute rows")
     return {}
 
 
 def save_cache(cache):
     tmp = CACHE_FILE + ".tmp"
     with open(tmp, "w") as f:
-        json.dump(cache, f)
+        json.dump(dict(cache, _armhash=ARM_HASH), f)
     os.replace(tmp, CACHE_FILE)
 
 
@@ -359,10 +397,11 @@ def cmd_sheet(args):
             f'<div class="m"><b>{r["_visual"]}</b> '
             f'<span>{str(r.get("title") or "")[:44]}</span><br>'
             f'<span class="d">€{price or 0:.0f} · {city} · '
-            f'bar {a.get("dropbar", 0):.2f} · navy {a.get("navy", 0):.2f}</span>'
+            + " · ".join(f"{k[:4]} {a.get(k, 0):.2f}" for k in ARM_LABELS)
+            + '</span>'
             f'</div></a>')
     html = """<!doctype html><meta charset=utf-8>
-<title><BRAND> <MODEL> — visual ranking</title>
+<title>__TITLE__ — visual ranking</title>
 <style>
 body{background:#1a1a2e;color:#e0e0e0;font:14px/1.4 -apple-system,system-ui,sans-serif;margin:0;padding:24px}
 h1{font-size:20px;font-weight:600;margin:0 0 4px}p.sub{color:#8a8aa3;margin:0 0 20px}
@@ -373,12 +412,15 @@ img{width:100%;height:190px;object-fit:cover;display:block;background:#111}
 .m{padding:8px 10px}.m b{color:#64b5f6}.d{color:#8a8aa3;font-size:12px}
 </style>
 <h1>Visual ranking — __N__ listings</h1>
-<p class="sub">Ranked by the attribute score (drop bars · navy pixels · steel tube).
+<p class="sub">Ranked by the attribute score (__ARMS__).
 Blue border = passes the gate. This is a genre filter, not an identification —
 scroll it with your own eyes.</p>
 <div class="g">__CELLS__</div>"""
     # .replace, not %: the CSS is full of literal % signs
-    html = html.replace("__N__", str(len(rows))).replace("__CELLS__", "\n".join(cells))
+    html = (html.replace("__N__", str(len(rows)))
+                .replace("__TITLE__", objectpack.noun(PACK).title())
+                .replace("__ARMS__", " · ".join(ARM_LABELS))
+                .replace("__CELLS__", "\n".join(cells)))
     out = os.path.join(DATA, "visual-sheet.html")
     open(out, "w").write(html)
     log(f"wrote {out} ({len(rows)} cells)")

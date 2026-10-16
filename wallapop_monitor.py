@@ -36,7 +36,7 @@ from datetime import datetime, timezone, timedelta
 
 import requests
 
-import notify
+import objectpack
 
 # Optional: drop a tg_routes.py next to this file to route pushes into a
 # Telegram forum topic instead of the DM. Absent, this is a no-op.
@@ -73,7 +73,15 @@ HEADERS = {
     "Referer": "https://es.wallapop.com/",
     "X-DeviceOS": "0",
 }
-BIKE_CATEGORY_IDS = {17000}          # "Bicicletas" — covers e-bikes too
+# The marketplace category for whole objects of this class, the words that
+# name one, and the words that name a PART of one, all come from the object
+# pack -- profiles/<object>.json, picked by "object" in data/bike.json.
+# profiles/bicycle.json holds exactly what this ran on for its first six
+# weeks; profiles/motorbike.json is the same shape for category 14000.
+PACK = objectpack.load(objectpack.read_json(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                 "data", "bike.json")))
+BIKE_CATEGORY_IDS = objectpack.category_ids(PACK) or {17000}
 MAX_PAGES = 5                        # 40 items/page; 5 pages of "bicicleta"
                                      # spans ~35 min of national listings
 LOG = "[wallapop-monitor]"
@@ -230,7 +238,9 @@ def build_queries(p):
         qs.append(f"{brand} {model}")
     if brand:
         qs.append(brand)
-        qs.append(f"bicicleta {brand}")
+        # "<local noun> <brand>" — "bicicleta <BRAND>", "moto Honda". The word
+        # comes from the object pack, in the marketplace's language.
+        qs.append(f"{objectpack.noun(PACK, 'local')} {brand}")
     if model and not brand:
         qs.append(model)
     # The whole of Wallapop Spain held exactly TWO <BRAND>-titled bikes when this
@@ -297,8 +307,7 @@ def fetch(keywords, pages=MAX_PAGES, lat=41.3874, lon=2.1686, order="newest"):
 
 # ---------------------------------------------------------------- scoring
 
-GENERIC_BIKE_WORDS = ("bicicleta", "bici", "bike", "mtb", "btt", "gravel",
-                      "carretera", "plegable", "urbana", "electrica", "ebike")
+GENERIC_BIKE_WORDS = objectpack.words(PACK, "generic")
 # Phrasing that recurs in stolen-goods listings: no papers, cash, urgent, no
 # questions. Individually meaningless, jointly a tell.
 SUSPICIOUS = ("sin factura", "no factura", "sin papeles", "urge", "urgente",
@@ -478,18 +487,11 @@ def run_hits(prof, seen, threshold=6):
 # Listings in the bike category that are not a rideable bike. Only applied when
 # the title has no bike word, so "cuadro de bicicleta" survives — a stripped
 # frame is exactly what a thief sells.
-PARTS_WORDS = ("rueda", "ruedas", "casco", "candado", "luces", "luz", "maillot",
-               "culotte", "zapatillas", "rodillo", "bomba", "sillin", "sillin",
-               "manillar", "cadena", "pedales", "portabultos", "guantes",
-               "gafas", "bidon", "desviador", "pinon", "tija", "potencia",
-               "horquilla", "funda", "remolque", "silla", "sillita", "asiento",
-               "portabebe", "portabebes", "chaqueta", "maletas", "alforjas",
-               # accessory head-nouns: "Thule Caravan portabicicletas" and
-               # "Porta ninos bicicleta Thule" both got through without these
-               "portabicicletas", "portabici", "portabicis", "porta",
-               "portaequipajes", "transportin", "cesta", "parrilla",
-               "nino", "ninos", "bebe", "bebes", "soporte", "adaptador")
-BIKE_WORDS = ("bicicleta", "bici", "bike", "mtb", "btt")
+# A parts word in the first three words of a title means the listing is about
+# the part, not the object. For bicycles "cuadro" (frame) is deliberately
+# absent from this list -- a stripped frame is exactly what a thief sells.
+PARTS_WORDS = objectpack.words(PACK, "parts")
+BIKE_WORDS = objectpack.words(PACK, "head")
 
 
 def is_whole_bike(it):
@@ -507,10 +509,10 @@ def is_whole_bike(it):
     return not any(has_token(t, w) for w in PARTS_WORDS)
 
 
-# (keyword, pages). The broad terms fill 5 pages in ~40 min of national
-# listings so they need the depth; the narrow ones reach back a full day on 2.
-SWEEP_QUERIES = (("bicicleta", 5), ("bici", 5),
-                 ("mountain bike", 2), ("bicicleta electrica", 2))
+# (keyword, pages), from the pack. The broad terms fill 5 pages in ~40 min of
+# national listings so they need the depth; the narrow ones reach back a full
+# day on 2.
+SWEEP_QUERIES = objectpack.sweep_queries(PACK)
 
 
 def sweep_queries(prof):

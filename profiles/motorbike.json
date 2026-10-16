@@ -1,0 +1,193 @@
+{
+  "object": "motorbike",
+  "_comment": "Wallapop category 14000 = whole motorbikes; 12800 is where the parts and the despieces live (measured 2026-10-16 against the live search). THRESHOLDS IN THIS FILE ARE PLACEHOLDERS, not measurements: the bicycle pack's numbers were tuned against seven probes over six weeks and none of that transfers. Run ./calibrate.py arms before you trust a digest from this pack.",
+  "noun": {
+    "singular": "motorbike",
+    "plural": "motorbikes",
+    "local": "moto"
+  },
+  "category_ids": [
+    14000
+  ],
+  "sweep_queries": [
+    [
+      "moto",
+      5
+    ],
+    [
+      "scooter",
+      3
+    ],
+    [
+      "motocicleta",
+      2
+    ],
+    [
+      "ciclomotor",
+      2
+    ],
+    [
+      "moto 125",
+      2
+    ]
+  ],
+  "sweep_queries_secondary": [
+    [
+      "moto",
+      3
+    ],
+    [
+      "scooter",
+      2
+    ],
+    [
+      "motocicleta",
+      2
+    ],
+    [
+      "ciclomotor",
+      1
+    ]
+  ],
+  "words": {
+    "generic": [
+      "moto",
+      "motocicleta",
+      "scooter",
+      "ciclomotor",
+      "maxiscooter",
+      "naked",
+      "custom",
+      "trail",
+      "enduro",
+      "cross",
+      "supermotard",
+      "cafe racer"
+    ],
+    "head": [
+      "moto",
+      "motocicleta",
+      "scooter",
+      "ciclomotor",
+      "maxiscooter"
+    ],
+    "parts": [
+      "despiece",
+      "carenado",
+      "carenados",
+      "deposito",
+      "escape",
+      "silenciador",
+      "manetas",
+      "maneta",
+      "retrovisor",
+      "retrovisores",
+      "espejo",
+      "intermitente",
+      "intermitentes",
+      "faro",
+      "piloto",
+      "llanta",
+      "llantas",
+      "neumatico",
+      "neumaticos",
+      "bateria",
+      "bujia",
+      "bujias",
+      "cadena",
+      "pinon",
+      "corona",
+      "puños",
+      "asiento",
+      "baul",
+      "maleta",
+      "maletas",
+      "casco",
+      "guantes",
+      "chaqueta",
+      "funda",
+      "cubremanos",
+      "soporte",
+      "caballete",
+      "amortiguador",
+      "horquilla",
+      "pastillas",
+      "filtro",
+      "carburador",
+      "estator",
+      "manillar",
+      "guardabarros",
+      "kit",
+      "adaptador"
+    ]
+  },
+  "arms": {
+    "scooter": {
+      "type": "clip",
+      "_comment": "Body type is the motorbike equivalent of drop bars: it is the one thing CLIP answers well. Flip the positives if you are looking for a scooter rather than a motorcycle.",
+      "positives": [
+        "a photo of a motorcycle with a fuel tank between the rider's knees, a naked or sport motorcycle"
+      ],
+      "negatives": [
+        "a photo of a step-through scooter with a flat footboard",
+        "a photo of a moped or 50cc scooter",
+        "a photo of a quad or ATV",
+        "a photo of a motorcycle part or fairing, not a whole motorcycle",
+        "a photo of a bicycle",
+        "a photo of an electric scooter with a standing deck"
+      ]
+    },
+    "luggage": {
+      "type": "clip",
+      "_comment": "The distinctive-accessory arm -- the equivalent of the child seat on the bicycle pack, and the arm that survives a repaint. Change it to whatever is bolted to YOURS: top box, crash bars, panniers, a windscreen.",
+      "positives": [
+        "a photo of a motorcycle with a top box or hard luggage cases fitted"
+      ],
+      "negatives": [
+        "a photo of a motorcycle with no luggage or accessories"
+      ]
+    },
+    "colour": {
+      "type": "colour",
+      "_comment": "PLACEHOLDER BAND -- red. `./calibrate.py colour` reads the real band off your own reference photos; do that before you rely on this arm. Hue in degrees, 0-360, red at 0 and wrapping.",
+      "hue": [
+        345,
+        15
+      ],
+      "sat_min": 0.35,
+      "val": [
+        0.15,
+        0.85
+      ]
+    }
+  },
+  "gate_near": {
+    "scooter": 0.1,
+    "colour": 0.05,
+    "luggage": 0.4
+  },
+  "gate_far": {
+    "scooter": 0.35,
+    "colour": 0.06
+  },
+  "rank": {
+    "weights": {
+      "scooter": 55,
+      "colour": 30,
+      "luggage": 15
+    }
+  },
+  "prompt": {
+    "intro": "You are helping find ONE specific stolen motorbike in marketplace photos.\nReference photos of it are attached first — study them before judging.",
+    "label_line": "THE MOTORBIKE: {headline}",
+    "scoring": "Score how plausibly the photo could be THIS motorbike, 0-10:",
+    "bands": " 0-1  wrong genre entirely — a scooter when you want a motorcycle\n      (or the reverse), a quad, a bicycle, a spare part, a fairing, or not\n      a motorbike at all\n 2-3  the right genre but clearly a different machine — wrong body shape,\n      wrong engine size class, or plainly the wrong colour\n 4-5  right genre and plausible size, but nothing specific lines up\n 6-7  several specific features line up: e.g. the colour AND the body shape,\n      or the frame/tank silhouette, or the luggage and crash protection\n 8-10 could really be it: tank and fairing shape, colour and the fitted kit\n      all agree, or a visible distinguishing mark matches",
+    "closing": "Use the whole range. Judge what you can actually see; if the photo is too\nsmall, dark or cropped to tell, say so in the reason and score the middle.\n\nNumber plates and VINs are usually blurred or removed in listings — do not\nrely on them, and do not refuse to score because they are missing."
+  },
+  "gate_arms": [
+    "scooter",
+    "colour",
+    "luggage"
+  ],
+  "_comment_gate_arms": "The arms the pre-gate is allowed to use. Arms outside this list still score and still rank the digest, but never decide whether a photo is paid for -- 'steel' on the bicycle pack is a tie-breaker and far too noisy to gate on (it reads 0.81 on a dim photo of the bike's own drive side)."
+}

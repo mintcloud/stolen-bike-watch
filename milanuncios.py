@@ -48,7 +48,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 from wallapop_monitor import (           # noqa: E402  (path set above)
-    DATA, SUSPICIOUS, bike_tokens, brand_token_set, build_queries, has_token,
+    DATA, PACK, SUSPICIOUS, bike_tokens, brand_token_set, build_queries, has_token,
     is_whole_bike, load_json, load_profile, norm, run_visual, run_vlm,
     save_json,
     send_telegram, _tg, send_batch, send_photo as _wm_send_photo,
@@ -77,8 +77,10 @@ LOG = "[milanuncios]"
 # Broad sweep terms, (query, pages). Milanuncios carries ~10-20 new bikes a day
 # inside 150 km, so two pages per term already reach back well past a day —
 # nothing like the 5-page-per-20-minutes race the Wallapop national feed needs.
-SWEEP_QUERIES = (("bicicleta", 3), ("bici", 3), ("bicicleta gravel", 1),
-                 ("bicicleta carretera", 2), ("mountain bike", 1))
+SWEEP_QUERIES = tuple(
+    (q, int(n)) for q, n in PACK.get("sweep_queries_secondary", [])) or (
+        ("bicicleta", 3), ("bici", 3), ("bicicleta gravel", 1),
+        ("bicicleta carretera", 2), ("mountain bike", 1))
 
 
 def log(msg):

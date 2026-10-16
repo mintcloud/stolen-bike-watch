@@ -1,0 +1,54 @@
+{
+  "object": "generic",
+  "_comment": "For anything that is not a bicycle or a motorbike: a cello, a camera, a power tool, a pram. It filters nothing by category or vocabulary -- you supply the search terms -- and ships ONE colour arm, because colour is the only attribute that generalises without a measurement. EVERY threshold here is a placeholder. Run ./calibrate.py arms, which derives them from your own photos, before the digest means anything. Adding one CLIP arm that separates your object class from its nearest neighbour is worth more than any other edit you can make -- see AGENTS.md.",
+  "noun": {
+    "singular": "object",
+    "plural": "objects",
+    "local": "objeto"
+  },
+  "category_ids": [],
+  "sweep_queries": [],
+  "sweep_queries_secondary": [],
+  "words": {
+    "generic": [],
+    "head": [],
+    "parts": []
+  },
+  "arms": {
+    "colour": {
+      "type": "colour",
+      "_comment": "PLACEHOLDER BAND. ./calibrate.py colour reads it off your reference photos. Hue in degrees 0-360, wrapping at red.",
+      "hue": [
+        0,
+        360
+      ],
+      "sat_min": 0.25,
+      "val": [
+        0.08,
+        0.92
+      ]
+    }
+  },
+  "gate_near": {
+    "colour": 0.05
+  },
+  "gate_far": {
+    "colour": 0.06
+  },
+  "rank": {
+    "weights": {
+      "colour": 100
+    }
+  },
+  "prompt": {
+    "intro": "You are helping find ONE specific stolen object in marketplace photos.\nReference photos of it are attached first — study them before judging.",
+    "label_line": "THE OBJECT: {headline}",
+    "scoring": "Score how plausibly the photo could be THIS object, 0-10:",
+    "bands": " 0-1  wrong kind of thing entirely, a part of one, or not the class of\n      object at all\n 2-3  the right kind of thing, but clearly a different one — wrong shape,\n      wrong size class, or plainly the wrong colour\n 4-5  right kind of thing and nothing rules it out, but nothing specific\n      lines up either\n 6-7  several specific features line up: shape and colour, or a visible\n      marking, wear pattern or fitted accessory\n 8-10 could really be it: the distinguishing features named above are\n      visible and agree",
+    "closing": "Use the whole range. Judge what you can actually see; if the photo is too\nsmall, dark or cropped to tell, say so in the reason and score the middle."
+  },
+  "gate_arms": [
+    "colour"
+  ],
+  "_comment_gate_arms": "The arms the pre-gate is allowed to use. Arms outside this list still score and still rank the digest, but never decide whether a photo is paid for -- 'steel' on the bicycle pack is a tie-breaker and far too noisy to gate on (it reads 0.81 on a dim photo of the bike's own drive side)."
+}

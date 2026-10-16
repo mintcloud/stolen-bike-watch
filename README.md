@@ -89,13 +89,63 @@ Kept here because a repo that only lists its wins is not telling you anything.
 | Narrow the price band | −19% | A thief prices unpredictably. Not worth the recall. |
 | "Be strict" in the prompt | — | Collapsed 116/120 scores to exactly 0, including all three reference photos, **and still produced two false positives at 8**. |
 
+## It is not only about bicycles, and not only about my bicycle
+
+Everything that is about *bicycles* rather than about *finding a stolen thing*
+lives in one file, `profiles/<object>.json`: the marketplace category, the
+search terms, the words that mean "a part of one rather than a whole one", the
+attribute arms, and the vision-model prompt.
+
+```jsonc
+// data/bike.json
+{ "object": "motorbike",          // -> profiles/motorbike.json
+  "headline": "a red Honda CB500F, taken 3 March",
+  "description": "...what makes THIS one different from every other one..." }
+```
+
+Shipped: **`bicycle`** (the real one — every threshold below is a
+measurement), **`motorbike`** (right shape, right category, *placeholder*
+thresholds) and **`generic`** for a cello, a camera, a pram. Your own photos go
+in `data/reference-photos/`; three is enough, and phone photos are fine.
+
+**The thresholds do not transfer, so do not guess them.** They are what seven
+probes and six weeks produced for one bike. `calibrate.py` derives them from
+your photos instead: it builds the same four degradations (repainted, cropped
+to the bare body, 240 px thumbnail, dimmed to 45%), scores every arm on every
+probe, scores a sample of real listings as the background, and searches for
+the thresholds that keep **every probe alive with 2× margin** while paying for
+as few listings as possible.
+
+```bash
+./calibrate.py probes     # the four degradations, and what each arm scores
+./calibrate.py colour     # read the colour band off your own photos
+./calibrate.py arms       # propose thresholds  (--write applies them)
+./calibrate.py prompt     # print the assembled prompt -- read it before a run
+```
+
+It also prints which arm is the only thing keeping each probe alive. That
+table is the honest statement of what your setup would miss:
+
+```
+reference 2 — rear, child seat        navy      <-- ONLY arm
+repainted (hue +90°)                  kid       <-- ONLY arm
+cropped to the body                   navy      <-- ONLY arm
+```
+
+**[`AGENTS.md`](AGENTS.md) is the setup manual**, written for the case where
+somebody hands this repo to an AI assistant and says "set this up, they took
+my bike." It has the interview to run, the pack-authoring rules, the
+calibration loop, and the six things that were measured and lost — so an agent
+does not helpfully re-propose batching the API calls (−43% cost, 5× the false
+positives).
+
 ## Install
 
 ```bash
 git clone https://github.com/mintcloud/stolen-bike-watch && cd stolen-bike-watch
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 cp .env.example .env                      # NOTIFY_BACKEND=stdout needs nothing else
-cp data/bike.example.json data/bike.json  # fill in: centre, price, brand/model
+cp data/bike.example.json data/bike.json  # fill in: object, centre, price, brand/model
 ./set-bike.sh "Brand Model gravel negra talla M 2023" 1800   # or guess it for me
 
 ./run.sh --test        # one pass, prints, writes no state, sends nothing
@@ -174,6 +224,12 @@ vlm.py                the recognition pass + cost ledger
 contact-sheet.py      the archive as one dark HTML photo grid
 recover-backlog.py    re-send the best-scoring archived listings
 notify.py             telegram | stdout | webhook
+objectpack.py         loads profiles/<object>.json -- the only bicycle-shaped
+                      thing left in the pipeline
+calibrate.py          derive the thresholds from YOUR photos, not mine
+profiles/             bicycle (measured) · motorbike · generic
+tests/                python3 tests/test_pack_parity.py
+AGENTS.md             the setup manual, written for an AI assistant
 docs/VISION.md        what image matching can and cannot do, measured
 docs/RECOGNITION.md   the LLM pass: precision, recall, cost, rejected levers
 docs/LOGIC.md         the search-widening changes and the filter traps

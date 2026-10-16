@@ -1,0 +1,205 @@
+{
+  "object": "bicycle",
+  "_comment": "Everything in this watcher that is about bicycles rather than about finding a stolen thing. Generated from the constants the repo ran on from 2026-09-05; tests/test_pack_parity.py asserts it still matches. Copy this file to add an object class.",
+  "noun": {
+    "singular": "bicycle",
+    "plural": "bicycles",
+    "local": "bicicleta"
+  },
+  "category_ids": [
+    17000
+  ],
+  "sweep_queries": [
+    [
+      "bicicleta",
+      5
+    ],
+    [
+      "bici",
+      5
+    ],
+    [
+      "mountain bike",
+      2
+    ],
+    [
+      "bicicleta electrica",
+      2
+    ]
+  ],
+  "words": {
+    "generic": [
+      "bicicleta",
+      "bici",
+      "bike",
+      "mtb",
+      "btt",
+      "gravel",
+      "carretera",
+      "plegable",
+      "urbana",
+      "electrica",
+      "ebike"
+    ],
+    "head": [
+      "bicicleta",
+      "bici",
+      "bike",
+      "mtb",
+      "btt"
+    ],
+    "parts": [
+      "rueda",
+      "ruedas",
+      "casco",
+      "candado",
+      "luces",
+      "luz",
+      "maillot",
+      "culotte",
+      "zapatillas",
+      "rodillo",
+      "bomba",
+      "sillin",
+      "sillin",
+      "manillar",
+      "cadena",
+      "pedales",
+      "portabultos",
+      "guantes",
+      "gafas",
+      "bidon",
+      "desviador",
+      "pinon",
+      "tija",
+      "potencia",
+      "horquilla",
+      "funda",
+      "remolque",
+      "silla",
+      "sillita",
+      "asiento",
+      "portabebe",
+      "portabebes",
+      "chaqueta",
+      "maletas",
+      "alforjas",
+      "portabicicletas",
+      "portabici",
+      "portabicis",
+      "porta",
+      "portaequipajes",
+      "transportin",
+      "cesta",
+      "parrilla",
+      "nino",
+      "ninos",
+      "bebe",
+      "bebes",
+      "soporte",
+      "adaptador"
+    ]
+  },
+  "arms": {
+    "dropbar": {
+      "type": "clip",
+      "positives": [
+        "a photo of a bicycle with drop handlebars, a road or gravel bike"
+      ],
+      "negatives": [
+        "a photo of a mountain bike with flat handlebars",
+        "a photo of a city or hybrid bicycle with flat straight handlebars",
+        "a photo of an electric bicycle with a motor",
+        "a photo of a folding bicycle",
+        "a photo of a small child's bicycle",
+        "a photo of a BMX bicycle",
+        "a photo of a bicycle wheel or spare part, not a whole bicycle"
+      ]
+    },
+    "steel": {
+      "type": "clip",
+      "positives": [
+        "a photo of a bicycle with a slim steel tube frame, classic touring style"
+      ],
+      "negatives": [
+        "a photo of a modern carbon fibre aero racing bicycle",
+        "a photo of a thick aluminium frame bicycle"
+      ]
+    },
+    "kid": {
+      "type": "clip",
+      "positives": [
+        "a photo of a bicycle with a child seat mounted on the back"
+      ],
+      "negatives": [
+        "a photo of a bicycle with no accessories"
+      ]
+    },
+    "navy": {
+      "type": "colour",
+      "_comment": "Measured off the raw pixels, not asked of CLIP: CLIP's colour answers were noise (median 0.37 on 'tan sidewalls'). Hue in degrees. Backgrounds pollute it, which is why it is an OR arm and never a filter on its own.",
+      "hue": [
+        195,
+        260
+      ],
+      "sat_min": 0.25,
+      "val": [
+        0.08,
+        0.62
+      ]
+    }
+  },
+  "gate_near": {
+    "dropbar": 0.1,
+    "navy": 0.05,
+    "kid": 0.4
+  },
+  "gate_far": {
+    "dropbar": 0.35,
+    "navy": 0.06
+  },
+  "rank": {
+    "weights": {
+      "dropbar": 55,
+      "navy": 30,
+      "steel": 15
+    }
+  },
+  "prompt": {
+    "_comment": "Assembled as: intro / label_line / the item's own description / scoring + bands / closing. Two parts are load-bearing and each was paid for with a failed run: the bands must SPAN the range -- a 'Be strict' instruction collapsed 116 of 120 scores to exactly 0, including all three reference photos -- and the item description must warn about any background colour in the reference photos, or the model credits the wall.",
+    "intro": "You are helping find ONE specific stolen bicycle in marketplace photos.\nReference photos of it are attached first — study them before judging.",
+    "label_line": "THE BIKE: {headline}",
+    "scoring": "Score how plausibly the photo could be THIS bike, 0-10:",
+    "bands": " 0-1  wrong genre entirely — mtb, e-bike, city/hybrid, kids, BMX, folding,\n      a spare part, a frame only, or not a bicycle\n 2-3  a drop-bar bike, but clearly a different one (modern sloping-top-tube\n      carbon race bike, or plainly the wrong colour)\n 4-5  right genre — a steel or steel-looking drop-bar gravel/touring/cross\n      bike — but nothing specific lines up\n 6-7  several specific features line up: e.g. dark blue AND drop bars, or a\n      level top tube on a steel drop-bar bike, or gumwall tyres plus racks\n 8-10 could really be it: frame shape and colour both match, or the kit\n      (child seat, twin racks, gumwalls) is recognisable",
+    "closing": "Use the whole range. Judge what you can actually see; if the photo is too\nsmall, dark or cropped to tell, say so in the reason and score the middle."
+  },
+  "sweep_queries_secondary": [
+    [
+      "bicicleta",
+      3
+    ],
+    [
+      "bici",
+      3
+    ],
+    [
+      "bicicleta gravel",
+      1
+    ],
+    [
+      "bicicleta carretera",
+      2
+    ],
+    [
+      "mountain bike",
+      1
+    ]
+  ],
+  "_comment_secondary": "sweep_queries is the Wallapop national newest-first feed, which is shallow and needs depth; sweep_queries_secondary is Milanuncios, which is distance-filtered server-side and reaches back a day on two pages.",
+  "gate_arms": [
+    "dropbar",
+    "navy",
+    "kid"
+  ],
+  "_comment_gate_arms": "The arms the pre-gate is allowed to use. Arms outside this list still score and still rank the digest, but never decide whether a photo is paid for -- 'steel' on the bicycle pack is a tie-breaker and far too noisy to gate on (it reads 0.81 on a dim photo of the bike's own drive side)."
+}
