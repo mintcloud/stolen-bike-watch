@@ -115,6 +115,47 @@ def save_json(path, obj):
     os.replace(tmp, path)
 
 
+# ------------------------------------------------------------------ seen ids
+# seen.json is the only thing standing between a still-listed item and a
+# re-notification on the next 20-minute pass. It used to be a flat list
+# pruned with `sorted(seen)[-30000:]` — which evicts by ALPHABET, not by age.
+# Wallapop ids are random base-36-ish strings, so every id starting with a low
+# character ("0j285mr4xdjy") was dropped on every single save and re-announced
+# forever, while ids starting with "x" were kept for good. Now the file is a
+# map id -> first-seen date and pruning is by age.
+SEEN_TTL_DAYS = 120                  # ~850 new ids/day -> ~100k entries
+SEEN_MAX = 150000                    # backstop, newest-first
+
+
+def load_seen():
+    """-> (set of ids, {id: 'YYYY-MM-DD'}). Accepts the legacy list format."""
+    raw = load_json(SEEN_FILE, {})
+    today = datetime.now(timezone.utc).date().isoformat()
+    if isinstance(raw, list):
+        # No dates on disk for the legacy entries. Stamp them today rather
+        # than at the epoch: guessing old would prune them all at once and
+        # re-announce thousands of listings.
+        raw = {i: today for i in raw if isinstance(i, str)}
+    elif not isinstance(raw, dict):
+        raw = {}
+    return set(raw), raw
+
+
+def save_seen(seen, stamps):
+    """Stamp anything new with today, drop anything past the TTL, write."""
+    today = datetime.now(timezone.utc).date().isoformat()
+    cutoff = (datetime.now(timezone.utc)
+              - timedelta(days=SEEN_TTL_DAYS)).date().isoformat()
+    for i in seen:
+        stamps.setdefault(i, today)
+    kept = {i: t for i, t in stamps.items() if i in seen and t >= cutoff}
+    if len(kept) > SEEN_MAX:
+        newest = sorted(kept.items(), key=lambda kv: kv[1])[-SEEN_MAX:]
+        kept = dict(newest)
+    save_json(SEEN_FILE, kept)
+    return kept
+
+
 # ---------------------------------------------------------------- bike profile
 
 DEFAULT_PROFILE = {
@@ -926,7 +967,7 @@ def main():
                   f"{r['title'][:55]}\n    {r['url']}\n    {'; '.join(r['reasons'])}")
         return
 
-    seen = set(load_json(SEEN_FILE, []))
+    seen, seen_stamps = load_seen()
     pending = load_json(PENDING_FILE, [])
     banked = {p["id"] for p in pending}
 
@@ -1006,7 +1047,7 @@ def main():
         archive([r for r in rows if r["id"] not in known])
         save_json(PENDING_FILE, [])
         seen.update(r["id"] for r in rows)
-        save_json(SEEN_FILE, sorted(seen)[-30000:])
+        save_seen(seen, seen_stamps)
         return
 
     # ---- digest-only: flush the bank, scan nothing
@@ -1156,7 +1197,7 @@ def main():
     if args.seed:
         for _, it, _ in hits + sweep:
             seen.add(it["id"])
-        save_json(SEEN_FILE, sorted(seen))
+        save_seen(seen, seen_stamps)
         log(f"seeded {len(seen)} listings, sent nothing")
         return
 
@@ -1207,7 +1248,7 @@ def main():
     for _, it, _ in hits + sweep:
         seen.add(it["id"])
     # ~100 local listings a day; keep the id set from growing without bound
-    save_json(SEEN_FILE, sorted(seen)[-30000:])
+    save_seen(seen, seen_stamps)
     log(f"{len(hits)} hits pushed, {len(sweep)} banked "
         f"({len(pending)} awaiting digest), {len(seen)} seen total")
 
